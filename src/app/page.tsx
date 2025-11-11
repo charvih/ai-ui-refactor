@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Editor from "@monaco-editor/react";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<"input" | "output">("input");
@@ -89,12 +90,34 @@ export default function Home() {
                 Or paste code:
               </label>
 
-              <textarea
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                className="w-full h-80 p-3 border rounded-lg text-sm font-mono"
-                placeholder="Paste your JSX/TSX code here..."
-              />
+              <div className="rounded-lg overflow-hidden border border-gray-300 shadow-sm">
+                <Editor
+                  height="420px"
+                  defaultLanguage="javascript"
+                  theme="vs-light"
+                  value={code}
+                  onChange={(value) => setCode(value ?? "")}
+                  options={{
+                    minimap: { enabled: false },
+                    fontSize: 14,
+                    padding: { top: 12 },
+                    smoothScrolling: true,
+                    scrollbar: {
+                      verticalScrollbarSize: 8,
+                      horizontalScrollbarSize: 8,
+                    },
+                    lineNumbersMinChars: 3,
+                    renderWhitespace: "selection",
+                    roundedSelection: false,
+                    scrollBeyondLastLine: false,
+                    wordWrap: "on",
+                    formatOnPaste: true,
+                    formatOnType: true,
+                    automaticLayout: true,
+                    tabSize: 2,
+                  }}
+                />
+              </div>
             </div>
 
             <button
