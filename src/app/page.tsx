@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 
 export default function Home() {
+  const [activeTab, setActiveTab] = useState<"input" | "output">("input");
   const [code, setCode] = useState("");
   const [fileName, setFileName] = useState("");
 
@@ -24,57 +25,94 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-gray-100 p-6">
-      <div className="mx-auto max-w-3xl bg-white p-6 rounded-xl shadow-sm border">
-        <h1 className="text-2xl font-bold mb-4">AI Code Refactor Tool</h1>
+      <div className="mx-auto max-w-4xl bg-white p-6 rounded-xl shadow-sm border">
+        {/* Title */}
+        <h1 className="text-3xl font-bold mb-6">AI Code Refactorer</h1>
 
-        {/* Upload section */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium mb-2">
-            Upload a .jsx or .tsx file:
-          </label>
-
-          <label
-            htmlFor="file-upload"
-            className="flex items-center justify-center w-full px-4 py-2 bg-gray-200 hover:bg-gray-300 text-sm rounded-lg cursor-pointer transition border border-gray-300"
+        {/* TABS */}
+        <div className="flex gap-6 border-b mb-6">
+          <button
+            onClick={() => setActiveTab("input")}
+            className={`pb-2 px-1 border-b-2 text-sm font-semibold ${
+              activeTab === "input"
+                ? "border-black text-black"
+                : "border-transparent text-gray-500 hover:text-black"
+            }`}
           >
-            Choose File
-          </label>
+            Input
+          </button>
 
-          <input
-            id="file-upload"
-            type="file"
-            accept=".js,.jsx,.ts,.tsx"
-            onChange={handleFileUpload}
-            className="hidden"
-          />
-
-          {fileName && (
-            <p className="text-sm text-gray-600 mt-1">
-              Loaded: <span className="font-medium">{fileName}</span>
-            </p>
-          )}
+          <button
+            onClick={() => setActiveTab("output")}
+            className={`pb-2 px-1 border-b-2 text-sm font-semibold ${
+              activeTab === "output"
+                ? "border-black text-black"
+                : "border-transparent text-gray-500 hover:text-black"
+            }`}
+          >
+            Output
+          </button>
         </div>
 
-        {/* OR paste code */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium mb-2">
-            Or paste your code manually:
-          </label>
-          <textarea
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            className="w-full h-56 p-3 border rounded-lg text-sm font-mono"
-            placeholder="Paste your React or JSX code here..."
-          />
-        </div>
+        {/* TAB CONTENT */}
+        {activeTab === "input" && (
+          <div>
+            {/* File Upload */}
+            <label className="block text-sm font-medium mb-2">
+              Upload a .jsx or .tsx file:
+            </label>
 
-        {/* Process button */}
-        <button
-          className="w-full bg-black text-white py-2 rounded-lg text-sm font-semibold hover:opacity-90 transition"
-          onClick={() => alert("In the next branch, this will send to backend")}
-        >
-          Clean Code (AI)
-        </button>
+            <label
+              htmlFor="file-upload"
+              className="flex items-center justify-center w-full px-4 py-2 bg-gray-200 hover:bg-gray-300 text-sm rounded-lg cursor-pointer transition border border-gray-300"
+            >
+              Choose File
+            </label>
+
+            <input
+              id="file-upload"
+              type="file"
+              accept=".js,.jsx,.ts,.tsx"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+
+            {fileName && (
+              <p className="text-sm text-gray-600 mt-1">
+                Loaded: <span className="font-medium">{fileName}</span>
+              </p>
+            )}
+
+            {/* Text Input */}
+            <div className="mt-4">
+              <label className="block text-sm font-medium mb-2">
+                Or paste code:
+              </label>
+
+              <textarea
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                className="w-full h-80 p-3 border rounded-lg text-sm font-mono"
+                placeholder="Paste your JSX/TSX code here..."
+              />
+            </div>
+
+            <button
+              className="mt-4 w-full bg-black text-white py-2 rounded-lg text-sm font-semibold hover:opacity-90 transition"
+              onClick={() => alert("AI cleaning implemented in backend branch")}
+            >
+              Clean Code (AI)
+            </button>
+          </div>
+        )}
+
+        {activeTab === "output" && (
+          <div className="w-full h-80 border rounded-lg bg-gray-50 p-3 text-sm font-mono text-gray-700">
+            {/* Placeholder for now */}
+            No cleaned code yet. Once we build the backend, the result will
+            appear here.
+          </div>
+        )}
       </div>
     </main>
   );
