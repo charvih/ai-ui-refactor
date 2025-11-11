@@ -1,82 +1,78 @@
 "use client";
 
-import React, { useState } from "react";
-import Editor from "@monaco-editor/react";
+import CodeEditor from "@/components/CodeEditor";
+import FileUploader from "@/components/FileUploader";
+import Tabs from "@/components/Tabs";
+import { useFileUpload } from "@/hooks/useFileUpload";
+import { useState } from "react";
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<"input" | "output">("input");
-  const [code, setCode] = useState("");
-  const [fileName, setFileName] = useState("");
+  const { fileName, fileContent, handleFileUpload, updateFileContent } =
+    useFileUpload();
+  const [activeTab, setActiveTab] = useState("input");
+  const [output, setOutput] = useState("");
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleTabChange = (tabId: string) => {
+    setActiveTab(tabId);
+  };
 
-    setFileName(file.name);
+  const handleCleanCode = async () => {
+    if (!fileContent.trim()) {
+      setError("Please provide code to clean.");
+      return;
+    }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result;
-      if (typeof text === "string") {
-        setCode(text);
+    try {
+      const response = await fetch("/api/clean-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: fileContent }),
+      });
+
+      if (response.ok) {
+        const { cleanedCode } = await response.json();
+        setOutput(cleanedCode);
+        setActiveTab("output");
+      } else {
+        setError("Failed to clean code. Please try again.");
       }
-    };
-    reader.readAsText(file);
-  }
+    } catch (error) {
+      setError("An unexpected error occurred. Please try again later.");
+    }
+  };
 
   return (
     <main className="min-h-screen bg-gray-100 p-6">
-      <div className="mx-auto max-w-4xl bg-white p-6 rounded-xl shadow-sm border">
+      <div className="mx-auto max-w-4xl rounded-xl bg-white p-6 shadow-sm border">
         {/* Title */}
         <h1 className="text-3xl font-bold mb-6">AI Code Refactorer</h1>
 
         {/* TABS */}
-        <div className="flex gap-6 border-b mb-6">
-          <button
-            onClick={() => setActiveTab("input")}
-            className={`pb-2 px-1 border-b-2 text-sm font-semibold ${
-              activeTab === "input"
-                ? "border-black text-black"
-                : "border-transparent text-gray-500 hover:text-black"
-            }`}
-          >
-            Input
-          </button>
+        <Tabs
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          tabs={[
+            { id: "input", label: "Input" },
+            { id: "output", label: "Output" },
+          ]}
+        />
 
-          <button
-            onClick={() => setActiveTab("output")}
-            className={`pb-2 px-1 border-b-2 text-sm font-semibold ${
-              activeTab === "output"
-                ? "border-black text-black"
-                : "border-transparent text-gray-500 hover:text-black"
-            }`}
-          >
-            Output
-          </button>
-        </div>
+        {error && activeTab === "input" && (
+          <div className="bg-red-100 text-red-700 p-2 rounded mb-4">
+            {error}
+          </div>
+        )}
 
-        {/* TAB CONTENT */}
         {activeTab === "input" && (
-          <div>
+          <>
             {/* File Upload */}
             <label className="block text-sm font-medium mb-2">
               Upload a .jsx or .tsx file:
             </label>
 
-            <label
-              htmlFor="file-upload"
-              className="flex items-center justify-center w-full px-4 py-2 bg-gray-200 hover:bg-gray-300 text-sm rounded-lg cursor-pointer transition border border-gray-300"
-            >
-              Choose File
-            </label>
-
-            <input
-              id="file-upload"
-              type="file"
-              accept=".js,.jsx,.ts,.tsx"
-              onChange={handleFileUpload}
-              className="hidden"
-            />
+            <FileUploader onFileUpload={handleFileUpload} />
 
             {fileName && (
               <p className="text-sm text-gray-600 mt-1">
@@ -90,53 +86,56 @@ export default function Home() {
                 Or paste code:
               </label>
 
-              <div className="rounded-lg overflow-hidden border border-gray-300 shadow-sm">
-                <Editor
-                  height="420px"
-                  defaultLanguage="javascript"
-                  theme="vs-light"
-                  value={code}
-                  onChange={(value) => setCode(value ?? "")}
-                  options={{
-                    minimap: { enabled: false },
-                    fontSize: 14,
-                    padding: { top: 12 },
-                    smoothScrolling: true,
-                    scrollbar: {
-                      verticalScrollbarSize: 8,
-                      horizontalScrollbarSize: 8,
-                    },
-                    lineNumbersMinChars: 3,
-                    renderWhitespace: "selection",
-                    roundedSelection: false,
-                    scrollBeyondLastLine: false,
-                    wordWrap: "on",
-                    formatOnPaste: true,
-                    formatOnType: true,
-                    automaticLayout: true,
-                    tabSize: 2,
-                  }}
-                />
-              </div>
+              <CodeEditor
+                code={fileContent}
+                onCodeChange={updateFileContent}
+                fileName={fileName}
+              />
             </div>
 
             <button
-              className="mt-4 w-full bg-black text-white py-2 rounded-lg text-sm font-semibold hover:opacity-90 transition"
-              onClick={() => alert("AI cleaning implemented in backend branch")}
+              onClick={async () => {
+                setIsLoading(true);
+                await handleCleanCode();
+                setIsLoading(false);
+              }}
+              disabled={isLoading}
+              className={`mt-4 theme-button ${
+                isLoading ? "opacity-50 cursor-not-allowed" : ""
+              }`}
             >
-              Clean Code (AI)
+              {isLoading ? "Cleaning..." : "Clean Code"}
             </button>
-          </div>
+          </>
         )}
 
         {activeTab === "output" && (
-          <div className="w-full h-80 border rounded-lg bg-gray-50 p-3 text-sm font-mono text-gray-700">
-            {/* Placeholder for now */}
-            No cleaned code yet. Once we build the backend, the result will
-            appear here.
+          <div className="mt-4">
+            {output ? (
+              <>
+                <h2 className="text-xl font-semibold mb-2">Cleaned Code:</h2>
+                <CodeEditor
+                  code={output}
+                  onCodeChange={() => {}}
+                  fileName={fileName}
+                  options={{ readOnly: true }}
+                />
+              </>
+            ) : (
+              <p className="text-gray-600">
+                Run "Clean Code" first to see the output.
+              </p>
+            )}
           </div>
         )}
       </div>
     </main>
   );
+}
+
+interface CodeEditorProps {
+  code: string;
+  onCodeChange: (code: string) => void;
+  fileName?: string;
+  options?: Record<string, any>;
 }

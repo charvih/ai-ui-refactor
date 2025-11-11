@@ -3,13 +3,8 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: "Geist", Arial, sans-serif;
+  --font-mono: "Geist Mono", monospace;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -22,5 +17,48 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+}
+
+.theme-border {
+  border-color: var(--foreground) !important;
+  border-width: 1px !important;
+  border-radius: 0.5rem !important; /* Consistent rounding for all elements */
+  box-sizing: border-box; /* Ensure borders don't cause layout issues */
+  margin: -1px; /* Adjust margin to eliminate gaps */
+  padding: 0; /* Remove internal gaps */
+}
+
+.theme-button {
+  background-color: var(--foreground) !important;
+  color: var(--background) !important;
+  border: 1px solid var(--foreground) !important;
+  transition: background-color 0.3s, color 0.3s;
+  width: 100% !important;
+  text-align: center !important;
+  padding: 0.75rem 1rem !important;
+  display: inline-block !important;
+  border-radius: 0.5rem !important; /* Restored specific rounding for the Clean Code button */
+}
+
+.theme-button:hover {
+  background-color: var(--background) !important;
+  color: var(--foreground) !important;
+}
+
+.rounded {
+  border-radius: 0.5rem; /* Consistent rounding for all elements */
+}
+
+/* Apply the rounded class to all relevant components */
+.theme-border,
+.theme-button,
+input,
+textarea,
+select {
+  border-radius: var(--rounded);
+}
+
+label {
+  color: var(--foreground); /* Ensure labels match the theme */
 }
