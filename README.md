@@ -6,10 +6,11 @@ AI Code Refactorer is a Next.js application designed to clean and refactor your 
 
 ## Features
 
-- **File Upload**: Upload `.jsx` or `.tsx` files for refactoring.
-- **Code Editor**: Edit your code directly in the browser with syntax highlighting.
-- **AI Cleaning**: Placeholder for AI-powered code cleaning functionality.
-- **Modern UI**: Built with Next.js App Router and optimized for performance.
+- **File Upload** – Drop `.jsx` / `.tsx` files or paste code straight into the Monaco editor.
+- **AI Cleaning Pipeline** – Sends your component to OpenAI (`gpt-4o-mini`) to normalize Tailwind classes, tidy JSX, and remove dead imports.
+- **Dark / Light Modes** – Persisted toggle with Monaco theme syncing for a polished developer-tool feel.
+- **Visual Before/After** – Input and output tabs, read-only output editor, and copy/download actions.
+- **Download & Share** – Export cleaned components as `.tsx` or `.jsx`, matching the uploaded filename when available.
 
 ## Getting Started
 
@@ -37,32 +38,38 @@ Ensure you have the following installed:
 
 ### Development
 
-Run the development server:
-
-```bash
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) to view the application.
+1. Set up environment variables:
+   ```bash
+   cp .env.example .env.local # or create manually
+   OPENAI_API_KEY=sk-your-key
+   ```
+2. Start the dev server:
+   ```bash
+   npm run dev
+   ```
+3. Visit [http://localhost:3000](http://localhost:3000) to use the refactorer.
 
 ### API
 
-The application includes an API endpoint for code cleaning:
+The application exposes an App Router endpoint that powers the refactoring pipeline:
 
-- **Endpoint**: `/api/clean-code`
+- **Endpoint**: `/api/clean`
 - **Method**: `POST`
-- **Request Body**:
+- **Body**:
   ```json
   {
-    "code": "<your code here>"
+    "code": "<component source>",
+    "fileName": "Component.tsx"
   }
   ```
 - **Response**:
   ```json
   {
-    "cleanedCode": "<cleaned code placeholder>"
+    "cleanedCode": "<refactored code>"
   }
   ```
+
+Set `OPENAI_API_KEY` to a valid key before hitting the endpoint locally or in production.
 
 ## Error Handling and Limitations
 
@@ -72,7 +79,7 @@ The application includes basic error handling to provide feedback to users. If a
 
 ### Placeholder Behavior
 
-The AI-powered code cleaning functionality is currently a placeholder. The `/api/clean-code` endpoint returns a static response for demonstration purposes. Future updates will integrate actual AI-based code cleaning capabilities.
+If `OPENAI_API_KEY` is missing, the API responds with an informative error so you can wire up the key or stub the request in development.
 
 ## Learn More
 

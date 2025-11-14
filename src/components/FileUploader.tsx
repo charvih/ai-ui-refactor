@@ -18,7 +18,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
     <div>
       <label
         htmlFor="file-upload"
-        className="flex items-center justify-center w-full px-4 py-2 bg-gray-200 hover:bg-gray-300 text-sm rounded-lg cursor-pointer transition border border-gray-300"
+        className="flex w-full items-center justify-center rounded-lg border border-slate-200 bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-200 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
       >
         Choose File
       </label>

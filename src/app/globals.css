@@ -1,64 +1,61 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #edf1f5;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --muted: #d9e0ea;
+  --muted-foreground: #475569;
+  --accent: #2563eb;
+  --accent-foreground: #f8fafc;
+  --border: #d4dde9;
   --font-sans: "Geist", Arial, sans-serif;
   --font-mono: "Geist Mono", monospace;
+  color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html.dark {
+  color-scheme: dark;
+  --background: #020617;
+  --foreground: #f8fafc;
+  --card: #0f172a;
+  --muted: #1e293b;
+  --muted-foreground: #cbd5f5;
+  --accent: #7dd3fc;
+  --accent-foreground: #060910;
+  --border: #20283a;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+  min-height: 100vh;
 }
 
-.theme-border {
-  border-color: var(--foreground) !important;
-  border-width: 1px !important;
-  border-radius: 0.5rem !important; /* Consistent rounding for all elements */
-  box-sizing: border-box; /* Ensure borders don't cause layout issues */
-  margin: -1px; /* Adjust margin to eliminate gaps */
-  padding: 0; /* Remove internal gaps */
+.card-surface {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  transition:
+    background-color 0.3s ease,
+    border-color 0.3s ease;
 }
 
-.theme-button {
-  background-color: var(--foreground) !important;
-  color: var(--background) !important;
-  border: 1px solid var(--foreground) !important;
-  transition: background-color 0.3s, color 0.3s;
-  width: 100% !important;
-  text-align: center !important;
-  padding: 0.75rem 1rem !important;
-  display: inline-block !important;
-  border-radius: 0.5rem !important; /* Restored specific rounding for the Clean Code button */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 1rem;
+  border: 1px solid rgba(148, 163, 184, 0.4);
 }
 
-.theme-button:hover {
-  background-color: var(--background) !important;
-  color: var(--foreground) !important;
-}
-
-.rounded {
-  border-radius: 0.5rem; /* Consistent rounding for all elements */
-}
-
-/* Apply the rounded class to all relevant components */
-.theme-border,
-.theme-button,
-input,
-textarea,
-select {
-  border-radius: var(--rounded);
-}
-
-label {
-  color: var(--foreground); /* Ensure labels match the theme */
+html.dark .glass-panel {
+  background: rgba(15, 23, 42, 0.94);
+  border-color: rgba(148, 163, 184, 0.45);
 }

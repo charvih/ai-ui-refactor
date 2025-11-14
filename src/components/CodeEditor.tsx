@@ -5,8 +5,11 @@ import React, { useEffect, useState } from "react";
 
 interface CodeEditorProps {
   code: string;
-  onCodeChange: (code: string) => void;
-  fileName?: string; // Optional file name to infer language
+  onCodeChange?: (code: string) => void;
+  fileName?: string;
+  readOnly?: boolean;
+  theme?: "light" | "dark";
+  height?: string;
 }
 
 const inferLanguage = (fileName: string | undefined): string => {
@@ -38,8 +41,13 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   code,
   onCodeChange,
   fileName,
+  readOnly = false,
+  theme = "light",
+  height = "420px",
 }) => {
   const [language, setLanguage] = useState<string>(inferLanguage(fileName));
+  const showLanguagePicker = !readOnly;
+  const monacoTheme = theme === "dark" ? "vs-dark" : "vs-light";
 
   useEffect(() => {
     setLanguage(inferLanguage(fileName));
@@ -47,36 +55,42 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
 
   return (
     <>
-      <div className="rounded-lg">
-        <div
-          className={`flex justify-between items-center p-2 bg-gray-100 border-b border-gray-300 ${onCodeChange === undefined ? "hidden" : "flex"}`}
-        >
-          <label htmlFor="language-select" className="text-sm text-gray-600">
-            Language:
-          </label>
-          <select
-            id="language-select"
-            value={language}
-            onChange={(e) => setLanguage(e.target.value)}
-            className="text-sm border border-gray-300 rounded p-1"
-          >
-            <option value="javascript">JavaScript</option>
-            <option value="typescript">TypeScript</option>
-            <option value="python">Python</option>
-            <option value="java">Java</option>
-            <option value="html">HTML</option>
-            <option value="css">CSS</option>
-            <option value="json">JSON</option>
-            <option value="plaintext">Plain Text</option>
-          </select>
-        </div>
+      <div className="overflow-hidden rounded-xl border border-slate-200 shadow-sm dark:border-slate-800">
+        {showLanguagePicker && (
+          <div className="flex items-center justify-between border border-b-0 border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+            <label htmlFor="language-select" className="font-medium">
+              Language
+            </label>
+            <select
+              id="language-select"
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              className="rounded border border-slate-300 bg-white px-2 py-1 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
+            >
+              <option value="javascript">JavaScript</option>
+              <option value="typescript">TypeScript</option>
+              <option value="python">Python</option>
+              <option value="java">Java</option>
+              <option value="html">HTML</option>
+              <option value="css">CSS</option>
+              <option value="json">JSON</option>
+              <option value="plaintext">Plain Text</option>
+            </select>
+          </div>
+        )}
         <Editor
-          height="420px"
+          height={height}
           language={language}
-          theme="vs-light"
+          theme={monacoTheme}
           value={code}
-          onChange={(value) => onCodeChange?.(value ?? "")}
+          onChange={(value) => {
+            if (readOnly) {
+              return;
+            }
+            onCodeChange?.(value ?? "");
+          }}
           options={{
+            readOnly,
             minimap: { enabled: false },
             fontSize: 14,
             padding: { top: 12 },
