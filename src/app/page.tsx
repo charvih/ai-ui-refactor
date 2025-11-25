@@ -18,8 +18,6 @@ type CleanupDiagnostics = {
   normalizedTailwindClasses: number;
 };
 
-type UsageSnapshot = Record<ProviderId, number>;
-
 type Artifacts = {
   original: string;
   deterministic: string;
@@ -34,8 +32,8 @@ const PROVIDERS: { id: ProviderId; label: string; description: string }[] = [
   },
   {
     id: "custom-finetuned",
-    label: "Custom Fine-tuned Model",
-    description: "Your own Llama2/Mistral model",
+    label: "Custom Local Model",
+    description: "Local Ollama model (neural-chat)",
   },
   {
     id: "deterministic",
@@ -43,12 +41,6 @@ const PROVIDERS: { id: ProviderId; label: string; description: string }[] = [
     description: "Skip LLM; return structured cleanup only",
   },
 ];
-
-const DEFAULT_USAGE: UsageSnapshot = {
-  openai: 0,
-  "custom-finetuned": 0,
-  deterministic: 0,
-};
 
 export default function Home() {
   const { fileName, fileContent, handleFileUpload, updateFileContent } =
@@ -67,7 +59,6 @@ export default function Home() {
   const [diagnostics, setDiagnostics] = useState<CleanupDiagnostics | null>(
     null,
   );
-  const [usage, setUsage] = useState<UsageSnapshot>(DEFAULT_USAGE);
 
   // Check if custom model is available on mount
   useEffect(() => {
@@ -140,7 +131,6 @@ export default function Home() {
       setArtifacts(payload.artifacts as Artifacts);
       setSummary(payload.summary as string[]);
       setDiagnostics(payload.diagnostics as CleanupDiagnostics);
-      setUsage(payload.usage as UsageSnapshot);
       setActiveTab("output");
     } catch (err) {
       const message =
@@ -202,8 +192,8 @@ export default function Home() {
               AI Code Refactorer
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-500 dark:text-slate-200">
-              Upload a component, run deterministic cleanup, then let your
-              fine-tuned LLM polish it. Copy, diff, and download the final
+              Upload a component, run deterministic cleanup, then let an LLM
+              (hosted or local) polish it. Copy, diff, and download the final
               component instantly.
             </p>
           </div>
@@ -286,13 +276,6 @@ export default function Home() {
                       </option>
                     ))}
                   </select>
-                  <div className="text-xs text-slate-500 dark:text-slate-400">
-                    {PROVIDERS.map((option) => (
-                      <div key={option.id}>
-                        {option.label}: {usage[option.id] ?? 0} run(s)
-                      </div>
-                    ))}
-                  </div>
                 </div>
               </div>
 
