@@ -1,98 +1,54 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
-
 # AI Code Refactorer
 
-AI Code Refactorer is a Next.js application designed to clean and refactor your code using AI. It provides an intuitive interface for uploading code files, editing them, and viewing cleaned results.
+This project came from my capstone: I kept seeing PRs that needed refactors, and I wanted to see how far LLMs could go in automating that review step. The app combines deterministic cleanup with LLM polishing and a diff-first UI to make reviews faster and more consistent.
 
-## Features
+## What it does
+- **Deterministic cleanup first**: TypeScript/Babel pipeline removes unused imports, normalizes Tailwind classes, and sorts props before any model call.
+- **LLM polishing**: choose OpenAI/Groq or a local Ollama model (`neural-chat`) for final refactors and summaries.
+- **Diff-focused UI**: compare Original vs Deterministic vs AI output side by side, with usage counters and light/dark themes.
+- **Download/share**: export the cleaned component as `.tsx`/`.jsx`.
 
-- **Deterministic cleanup** – A TypeScript/Babel pipeline removes unused imports, sorts props, and reorders Tailwind classes *before* any LLM call, producing reproducible diagnostics.
-- **Provider-aware AI polishing** – Choose between OpenAI (GPT-4o mini) or Groq (Llama3‑70B) and see usage counts for each provider inside the UI.
-- **Diff-driven review** – Visualize Original → Deterministic and Deterministic → AI output diffs, plus a summary of the LLM’s reasoning.
-- **Dark / Light Modes** – Persisted toggle with Monaco theme syncing for a polished developer-tool feel.
-- **Download & Share** – Export cleaned components as `.tsx` or `.jsx`, matching the uploaded filename when available.
+## Architecture
+- **Frontend**: Next.js (App Router) for the editor, diffs, and provider selection.
+- **API route**: `/api/clean` orchestrates deterministic cleanup, then calls the chosen provider.
+- **Custom model server**: `scripts/quick_model_server.py` (Flask) exposes `/health`, `/refactor`, `/batch-refactor` and calls Ollama `neural-chat` on `http://localhost:11434`.
+- **Local LLM runtime**: Ollama for running the local model.
 
-## Getting Started
-
-### Prerequisites
-
-Ensure you have the following installed:
-
-- Node.js (v16 or higher)
-- npm or yarn
-
-### Installation
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/charvih/ai-ui-refactor.git
+## Setup: frontend with hosted models
+1) Install deps: `npm install`
+2) Copy envs: `cp .env.example .env.local` then set:
    ```
-2. Navigate to the project directory:
-   ```bash
-   cd ai-ui-refactor
+   OPENAI_API_KEY=sk-...
+   GROQ_API_KEY=...        # optional
+   CUSTOM_MODEL_URL=http://localhost:8000
    ```
-3. Install dependencies:
-   ```bash
-   npm install
+3) Run the app: `npm run dev` and open http://localhost:3000
+4) In the UI, pick a provider (OpenAI/Groq) or “Custom Fine-tuned Model” if you’re running the local server below.
+
+## Setup: local custom model (Ollama)
+1) Install Ollama: https://ollama.ai
+2) Pull the model: `ollama pull neural-chat`
+3) Start Ollama: `ollama serve` (if port 11434 is busy, Ollama may already be running)
+4) Run the Flask server:
    ```
-
-### Development
-
-1. Set up environment variables:
-   ```bash
-   cp .env.example .env.local # or create manually
-   OPENAI_API_KEY=sk-your-openai-key
-   GROQ_API_KEY=your-groq-key # optional, enables Groq provider
+   python scripts/quick_model_server.py
    ```
-2. Start the dev server:
-   ```bash
-   npm run dev
-   ```
-3. Visit [http://localhost:3000](http://localhost:3000) to use the refactorer.
+   - Warmup runs automatically; first response can take ~1–2 minutes.
+   - Health check: `curl http://localhost:8000/health` → `{"status":"ok","model":"neural-chat"}`
+5) Use the app with provider “Custom Fine-tuned Model”.
 
-### API
+## Usage (API)
+POST `/api/clean`
+```json
+{
+  "code": "<component source>",
+  "fileName": "Component.tsx",
+  "provider": "openai" | "groq" | "custom-finetuned" | "deterministic"
+}
+```
+Response includes cleaned/refactored code plus diagnostics and summaries.
 
-The application exposes an App Router endpoint that powers the refactoring pipeline:
-
-- **Endpoint**: `/api/clean`
-- **Method**: `POST`
-- **Body**:
-  ```json
-  {
-    "code": "<component source>",
-    "fileName": "Component.tsx"
-  }
-  ```
-- **Response**:
-  ```json
-  {
-    "cleanedCode": "<refactored code>"
-  }
-  ```
-
-Set `OPENAI_API_KEY` (and optionally `GROQ_API_KEY`) to valid keys before hitting the endpoint locally or in production.
-
-## Error Handling and Limitations
-
-### Error State
-
-The application includes basic error handling to provide feedback to users. If an error occurs during the code cleaning process, a toast notification or banner will appear with the error message. This ensures users are informed of any issues and can take corrective actions.
-
-### Placeholder Behavior
-
-If `OPENAI_API_KEY` is missing, the API responds with an informative error so you can wire up the key or stub the request in development.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Why it exists
+- Problem: frequent PRs with style/cleanup issues slowed review cycles.
+- Approach: front-load deterministic fixes, then have an LLM finish and explain changes with diffs.
+- Goal: faster, more consistent reviews and a playground to compare hosted vs local LLMs.
