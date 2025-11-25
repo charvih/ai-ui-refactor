@@ -1,22 +1,34 @@
+import { runDeterministicCleanup } from "@/lib/cleanup/pipeline";
+import { getUsageSnapshot, runModel } from "@/lib/providers";
+import type { ProviderId } from "@/lib/providers/types";
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 const SYSTEM_PROMPT = `
-You are an expert React UI refactor assistant. When you receive a component file:
-- Clean up Tailwind utility class order (use logical grouping).
-- Remove unused imports.
-- Prefer functional components and concise hooks.
-- Normalize inline styles into Tailwind classes when possible.
-- Preserve behavior; only improve readability and consistency.
-Return ONLY the transformed code with no explanation.
+You are an expert React UI refactor assistant.
+- Respect component behavior and improve readability.
+- Prefer concise React patterns, accessibility improvements, and idiomatic Tailwind usage.
+- Always respond with JSON in the shape:
+  {
+    "cleanedCode": "<tsx string>",
+    "summary": ["short bullet"]
+  }
 `.trim();
 
+const CUSTOM_MODEL_URL =
+  process.env.CUSTOM_MODEL_URL || "http://localhost:8000";
+
+type CleanRequestBody = {
+  code: string;
+  fileName?: string;
+  provider?: ProviderId;
+};
+
 export async function POST(request: Request) {
-  const { code, fileName } = await request.json();
+  const {
+    code,
+    fileName,
+    provider = "openai",
+  } = (await request.json()) as CleanRequestBody;
 
   if (!code || typeof code !== "string" || !code.trim()) {
     return NextResponse.json(
@@ -25,56 +37,107 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!process.env.OPENAI_API_KEY) {
-    return NextResponse.json(
-      {
-        error:
-          "Missing OPENAI_API_KEY. Add it to your environment to enable AI cleaning.",
-      },
-      { status: 500 },
-    );
-  }
-
   try {
-    const completion = await openai.responses.create({
-      model: "gpt-4o-mini",
-      input: [
-        {
-          role: "system",
-          content: SYSTEM_PROMPT,
+    const cleanupResult = runDeterministicCleanup(code);
+
+    const userPrompt = [
+      fileName ? `Component: ${fileName}` : "",
+      "Deterministic cleanup (already applied on our side):",
+      "```tsx",
+      cleanupResult.code,
+      "```",
+      "Please deliver an improved, production-ready variant (in JSON as described).",
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    if (provider === "deterministic") {
+      return NextResponse.json({
+        provider,
+        diagnostics: cleanupResult.diagnostics,
+        summary: ["Returned deterministic output only (no LLM used)."],
+        artifacts: {
+          original: code,
+          deterministic: cleanupResult.code,
+          aiOutput: cleanupResult.code,
         },
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: [
-                fileName ? `File: ${fileName}` : "",
-                "Refactor the following component:",
-                "```tsx",
-                code,
-                "```",
-              ]
-                .filter(Boolean)
-                .join("\n"),
-            },
-          ],
-        },
-      ],
-      temperature: 0.1,
+        usage: getUsageSnapshot(),
+      });
+    }
+
+    if (provider === "custom-finetuned") {
+      try {
+        const response = await fetch(`${CUSTOM_MODEL_URL}/refactor`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: cleanupResult.code }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Custom model returned ${response.status}`);
+        }
+
+        const data = await response.json();
+        const cleanedCode = data.refactored || cleanupResult.code;
+        const summary = data.summary || ["Refactored with fine-tuned model"];
+
+        return NextResponse.json({
+          provider,
+          diagnostics: cleanupResult.diagnostics,
+          summary,
+          artifacts: {
+            original: code,
+            deterministic: cleanupResult.code,
+            aiOutput: cleanedCode,
+          },
+          usage: getUsageSnapshot(),
+        });
+      } catch (error) {
+        throw new Error(
+          `Custom model error: ${error instanceof Error ? error.message : "Unknown error"}`,
+        );
+      }
+    }
+
+    const aiResult = await runModel({
+      provider,
+      systemPrompt: SYSTEM_PROMPT,
+      userPrompt,
     });
 
-    const cleanedCode =
-      completion.output?.[0]?.content?.[0]?.text?.trim() ?? code;
-
-    return NextResponse.json({ cleanedCode });
+    return NextResponse.json({
+      provider,
+      diagnostics: cleanupResult.diagnostics,
+      summary: aiResult.summary,
+      artifacts: {
+        original: code,
+        deterministic: cleanupResult.code,
+        aiOutput: aiResult.cleanedCode,
+      },
+      usage: getUsageSnapshot(),
+    });
   } catch (error) {
     console.error("Failed to clean code:", error);
+    const message =
+      error instanceof Error
+        ? error.message
+        : "AI cleaning failed. Please try again.";
+
+    const quota =
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      (error as { code?: string }).code === "insufficient_quota";
+
     return NextResponse.json(
-      { error: "AI cleaning failed. Please try again." },
-      { status: 500 },
+      {
+        error: quota
+          ? "Provider quota exceeded. Update billing or switch to another provider."
+          : message,
+      },
+      { status: quota ? 429 : 500 },
     );
   }
 }
 
-export const runtime = "edge";
+export const runtime = "nodejs";

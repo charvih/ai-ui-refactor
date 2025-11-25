@@ -6,10 +6,10 @@ AI Code Refactorer is a Next.js application designed to clean and refactor your 
 
 ## Features
 
-- **File Upload** – Drop `.jsx` / `.tsx` files or paste code straight into the Monaco editor.
-- **AI Cleaning Pipeline** – Sends your component to OpenAI (`gpt-4o-mini`) to normalize Tailwind classes, tidy JSX, and remove dead imports.
+- **Deterministic cleanup** – A TypeScript/Babel pipeline removes unused imports, sorts props, and reorders Tailwind classes *before* any LLM call, producing reproducible diagnostics.
+- **Provider-aware AI polishing** – Choose between OpenAI (GPT-4o mini) or Groq (Llama3‑70B) and see usage counts for each provider inside the UI.
+- **Diff-driven review** – Visualize Original → Deterministic and Deterministic → AI output diffs, plus a summary of the LLM’s reasoning.
 - **Dark / Light Modes** – Persisted toggle with Monaco theme syncing for a polished developer-tool feel.
-- **Visual Before/After** – Input and output tabs, read-only output editor, and copy/download actions.
 - **Download & Share** – Export cleaned components as `.tsx` or `.jsx`, matching the uploaded filename when available.
 
 ## Getting Started
@@ -41,7 +41,8 @@ Ensure you have the following installed:
 1. Set up environment variables:
    ```bash
    cp .env.example .env.local # or create manually
-   OPENAI_API_KEY=sk-your-key
+   OPENAI_API_KEY=sk-your-openai-key
+   GROQ_API_KEY=your-groq-key # optional, enables Groq provider
    ```
 2. Start the dev server:
    ```bash
@@ -69,7 +70,7 @@ The application exposes an App Router endpoint that powers the refactoring pipel
   }
   ```
 
-Set `OPENAI_API_KEY` to a valid key before hitting the endpoint locally or in production.
+Set `OPENAI_API_KEY` (and optionally `GROQ_API_KEY`) to valid keys before hitting the endpoint locally or in production.
 
 ## Error Handling and Limitations
 

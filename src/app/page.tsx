@@ -7,8 +7,48 @@ import ThemeToggle from "@/components/ThemeToggle";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { useTheme } from "@/hooks/useTheme";
 import { useEffect, useMemo, useState } from "react";
+import DiffViewer from "react-diff-viewer-continued";
 
 type Tab = "input" | "output";
+type ProviderId = "openai" | "custom-finetuned" | "deterministic";
+
+type CleanupDiagnostics = {
+  removedImports: number;
+  sortedJsxProps: number;
+  normalizedTailwindClasses: number;
+};
+
+type UsageSnapshot = Record<ProviderId, number>;
+
+type Artifacts = {
+  original: string;
+  deterministic: string;
+  aiOutput: string;
+};
+
+const PROVIDERS: { id: ProviderId; label: string; description: string }[] = [
+  {
+    id: "openai",
+    label: "OpenAI · GPT-4o mini",
+    description: "Balanced reasoning + quality",
+  },
+  {
+    id: "custom-finetuned",
+    label: "Custom Fine-tuned Model",
+    description: "Your own Llama2/Mistral model",
+  },
+  {
+    id: "deterministic",
+    label: "Deterministic only",
+    description: "Skip LLM; return structured cleanup only",
+  },
+];
+
+const DEFAULT_USAGE: UsageSnapshot = {
+  openai: 0,
+  "custom-finetuned": 0,
+  deterministic: 0,
+};
 
 export default function Home() {
   const { fileName, fileContent, handleFileUpload, updateFileContent } =
@@ -16,24 +56,64 @@ export default function Home() {
   const { theme, toggleTheme, isReady: themeReady } = useTheme();
 
   const [activeTab, setActiveTab] = useState<Tab>("input");
-  const [output, setOutput] = useState("");
+  const [provider, setProvider] = useState<ProviderId>("openai");
   const [isCleaning, setIsCleaning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [downloadExtension, setDownloadExtension] = useState<"tsx" | "jsx">(
     "tsx",
   );
+  const [artifacts, setArtifacts] = useState<Artifacts | null>(null);
+  const [summary, setSummary] = useState<string[]>([]);
+  const [diagnostics, setDiagnostics] = useState<CleanupDiagnostics | null>(
+    null,
+  );
+  const [usage, setUsage] = useState<UsageSnapshot>(DEFAULT_USAGE);
+
+  // Check if custom model is available on mount
+  useEffect(() => {
+    const checkCustomModel = async () => {
+      try {
+        await fetch("http://localhost:8000/health", {
+          method: "GET",
+        });
+      } catch {
+        // Model health check - silently fail
+      }
+    };
+    checkCustomModel();
+  }, []);
 
   useEffect(() => {
-    if (!fileName) {
-      return;
+    const stored =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem("ai-refactor-provider")
+        : null;
+    if (
+      stored === "openai" ||
+      stored === "custom-finetuned" ||
+      stored === "deterministic"
+    ) {
+      setProvider(stored);
     }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("ai-refactor-provider", provider);
+  }, [provider]);
+
+  useEffect(() => {
+    if (!fileName) return;
     const extension = fileName.split(".").pop()?.toLowerCase();
     if (extension === "tsx" || extension === "jsx") {
       setDownloadExtension(extension);
     }
   }, [fileName]);
 
-  const hasOutput = useMemo(() => output.trim().length > 0, [output]);
+  const hasOutput = useMemo(
+    () => Boolean(artifacts?.aiOutput?.trim()),
+    [artifacts],
+  );
 
   const handleCleanCode = async () => {
     if (!fileContent.trim()) {
@@ -49,16 +129,18 @@ export default function Home() {
       const response = await fetch("/api/clean", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: fileContent, fileName }),
+        body: JSON.stringify({ code: fileContent, fileName, provider }),
       });
 
+      const payload = await response.json();
       if (!response.ok) {
-        const { error: apiError } = await response.json();
-        throw new Error(apiError ?? "Unable to clean code.");
+        throw new Error(payload.error ?? "Unable to clean code.");
       }
 
-      const { cleanedCode } = await response.json();
-      setOutput(cleanedCode);
+      setArtifacts(payload.artifacts as Artifacts);
+      setSummary(payload.summary as string[]);
+      setDiagnostics(payload.diagnostics as CleanupDiagnostics);
+      setUsage(payload.usage as UsageSnapshot);
       setActiveTab("output");
     } catch (err) {
       const message =
@@ -71,35 +153,42 @@ export default function Home() {
   };
 
   const handleCopy = async () => {
-    if (!hasOutput) {
-      return;
-    }
+    if (!hasOutput || !artifacts) return;
     try {
-      await navigator.clipboard.writeText(output);
+      await navigator.clipboard.writeText(artifacts.aiOutput);
     } catch {
       setError("Unable to copy to clipboard. Please copy manually.");
     }
   };
 
   const handleDownload = () => {
-    if (!hasOutput) {
-      return;
-    }
-
+    if (!hasOutput || !artifacts) return;
     const extension = fileName?.split(".").pop() ?? downloadExtension;
     const downloadName = fileName
       ? fileName.replace(/\.[^/.]+$/, `.${extension}`)
       : `refactored.${extension}`;
-    const blob = new Blob([output], { type: "text/plain;charset=utf-8" });
+    const blob = new Blob([artifacts.aiOutput], {
+      type: "text/plain;charset=utf-8",
+    });
     const url = URL.createObjectURL(blob);
-
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = downloadName;
     anchor.click();
-
     URL.revokeObjectURL(url);
   };
+
+  const timeline = [
+    { label: "Upload / Paste", status: fileContent ? "done" : "pending" },
+    {
+      label: "Deterministic cleanup",
+      status: diagnostics ? "done" : "pending",
+    },
+    {
+      label: `AI · ${PROVIDERS.find((p) => p.id === provider)?.label ?? provider}`,
+      status: artifacts ? "done" : "pending",
+    },
+  ];
 
   return (
     <main className="min-h-screen bg-[var(--background)] px-4 py-10 transition-colors duration-300">
@@ -113,8 +202,9 @@ export default function Home() {
               AI Code Refactorer
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-500 dark:text-slate-200">
-              Upload a component, let AI clean Tailwind classes, restructure
-              JSX, and download a production-ready file in seconds.
+              Upload a component, run deterministic cleanup, then let your
+              fine-tuned LLM polish it. Copy, diff, and download the final
+              component instantly.
             </p>
           </div>
           <ThemeToggle
@@ -147,7 +237,7 @@ export default function Home() {
                   Upload a .jsx or .tsx file
                 </label>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  We only process the file in-memory - nothing is stored.
+                  We only process the file in-memory—nothing is stored.
                 </p>
                 <div className="mt-3">
                   <FileUploader onFileUpload={handleFileUpload} />
@@ -164,7 +254,8 @@ export default function Home() {
                   Or paste code
                 </label>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  We auto-detect the language and format it for you.
+                  We auto-detect the language and format it for you prior to AI
+                  cleanup.
                 </p>
                 <div className="mt-3">
                   <CodeEditor
@@ -173,6 +264,35 @@ export default function Home() {
                     fileName={fileName}
                     theme={theme}
                   />
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-slate-200/60 bg-white/70 p-4 dark:border-slate-700/60 dark:bg-slate-900/60">
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                  Model provider
+                </p>
+                <div className="mt-2 flex flex-col gap-3 md:flex-row md:items-center">
+                  <select
+                    value={provider}
+                    onChange={(event) =>
+                      setProvider(event.target.value as ProviderId)
+                    }
+                    title="Select AI provider"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  >
+                    {PROVIDERS.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
+                    {PROVIDERS.map((option) => (
+                      <div key={option.id}>
+                        {option.label}: {usage[option.id] ?? 0} run(s)
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -198,65 +318,124 @@ export default function Home() {
           )}
 
           {activeTab === "output" && (
-            <div className="space-y-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
-                    Result
-                  </p>
-                  <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
-                    Cleaned Code
-                  </h2>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={handleCopy}
-                    disabled={!hasOutput}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:border-slate-400 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:text-white"
-                  >
-                    Copy
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDownload}
-                    disabled={!hasOutput}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:border-slate-400 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:text-white"
-                  >
-                    Download
-                  </button>
+            <div className="space-y-6">
+              <div className="rounded-lg border border-slate-200/60 bg-white/70 p-4 dark:border-slate-700/60 dark:bg-slate-900/60">
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                  Pipeline status
+                </p>
+                <div className="mt-3 flex flex-col gap-2 text-sm text-slate-600 dark:text-slate-300">
+                  {timeline.map((step) => (
+                    <div key={step.label} className="flex items-center gap-2">
+                      <span
+                        className={`h-2.5 w-2.5 rounded-full ${
+                          step.status === "done"
+                            ? "bg-emerald-500"
+                            : "bg-slate-400"
+                        }`}
+                      />
+                      {step.label}
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              {!fileName && (
-                <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                  <label htmlFor="download-extension" className="font-medium">
-                    Download as
-                  </label>
-                  <select
-                    id="download-extension"
-                    value={downloadExtension}
-                    onChange={(event) =>
-                      setDownloadExtension(event.target.value as "tsx" | "jsx")
-                    }
-                    className="rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-600 dark:bg-slate-900"
-                  >
-                    <option value="tsx">.tsx</option>
-                    <option value="jsx">.jsx</option>
-                  </select>
+              {diagnostics && (
+                <div className="rounded-lg border border-slate-200/60 bg-white/70 p-4 text-sm text-slate-600 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300">
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                    Deterministic cleanup
+                  </p>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    <li>
+                      Removed unused imports: {diagnostics.removedImports}
+                    </li>
+                    <li>Sorted JSX props: {diagnostics.sortedJsxProps}</li>
+                    <li>
+                      Normalized Tailwind classes:{" "}
+                      {diagnostics.normalizedTailwindClasses}
+                    </li>
+                  </ul>
                 </div>
               )}
 
-              {hasOutput ? (
-                <CodeEditor
-                  code={output}
-                  fileName={fileName}
-                  readOnly
-                  theme={theme}
-                />
+              {summary.length > 0 && (
+                <div className="rounded-lg border border-slate-200/60 bg-white/70 p-4 text-sm text-slate-600 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300">
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                    Model summary (
+                    {PROVIDERS.find((p) => p.id === provider)?.label})
+                  </p>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    {summary.map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {artifacts ? (
+                <div className="space-y-6">
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={handleCopy}
+                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:border-slate-400 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:text-white"
+                    >
+                      Copy output
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDownload}
+                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:border-slate-400 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:text-white"
+                    >
+                      Download
+                    </button>
+                  </div>
+
+                  <div className="rounded-lg border border-slate-200/60 bg-white/70 p-4 dark:border-slate-700/60 dark:bg-slate-900/60">
+                    <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                      Original → AI output
+                    </h3>
+                    <div className="mt-4 overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
+                      <DiffViewer
+                        oldValue={artifacts.original}
+                        newValue={artifacts.aiOutput}
+                        splitView
+                        hideLineNumbers={false}
+                        showDiffOnly={false}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-slate-200/60 bg-white/70 p-4 dark:border-slate-700/60 dark:bg-slate-900/60">
+                    <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                      Deterministic → AI output
+                    </h3>
+                    <div className="mt-4 overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
+                      <DiffViewer
+                        oldValue={artifacts.deterministic}
+                        newValue={artifacts.aiOutput}
+                        splitView
+                        hideLineNumbers={false}
+                        showDiffOnly={false}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                      Final code
+                    </p>
+                    <div className="mt-3">
+                      <CodeEditor
+                        code={artifacts.aiOutput}
+                        readOnly
+                        theme={theme}
+                      />
+                    </div>
+                  </div>
+                </div>
               ) : (
                 <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-300">
-                  Run “Clean Code” to see refactored output.
+                  Run &quot;Clean Code&quot; first to see refactored output.
                 </div>
               )}
             </div>
